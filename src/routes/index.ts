@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { getSearchResults } from "../controllers/searchController";
 import { getDetailContent } from "../controllers/detailController";
-import { downloadBook } from "../controllers/downloadController";
+import { downloadBookWithPuppeteer } from "../controllers/downloadController";
 
 const router = Router();
 
@@ -128,6 +128,6 @@ router.get("/detail/:md5", getDetailContent);
  *       500:
  *         description: "Erro ao baixar o livro"
  */
-router.post("/download/:md5", downloadBook);
+router.post("/download/:md5", downloadBookWithPuppeteer);
 
 export default router;

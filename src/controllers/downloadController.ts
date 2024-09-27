@@ -1,50 +1,122 @@
-import axios from "axios";
+import { connect } from "puppeteer-real-browser";
 import fs from "fs-extra";
 import path from "path";
-import { Request, Response } from "express";
-import { fetchBookDownloadLinks } from "../services/scraperService";
+import fetch from "node-fetch";
 
-export const downloadBook = async (req: Request, res: Response) => {
-  const { md5 } = req.params;
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export const downloadBookWithPuppeteer = async (downloadOptionsUrl: string) => {
+  console.log("Iniciando download...");
+
+  const { browser, page } = await connect({
+    headless: false,
+    args: ["--start-maximized"],
+    turnstile: true,
+    disableXvfb: false,
+    customConfig: {},
+    connectOption: {
+      defaultViewport: null,
+    },
+    plugins: [require("puppeteer-extra-plugin-click-and-wait")()],
+  });
 
   try {
-    // Busca os links de download usando o MD5
-    const downloadLinks = await fetchBookDownloadLinks(md5);
+    const downloadPageUrl = `https://annas-archive.org/slow_download/${downloadOptionsUrl}`;
+    console.log(`Navegando para a página: ${downloadPageUrl}`);
+    await page.goto(downloadPageUrl, { waitUntil: "networkidle2" });
 
-    if (!downloadLinks || downloadLinks.length === 0) {
-      return res
-        .status(404)
-        .json({ error: "Nenhum link de download disponível." });
+    console.log("Esperando o desafio do Cloudflare ser resolvido...");
+
+    let maxRetries = 10;
+    let downloadLinkFound = false;
+    let downloadLink = "";
+
+    while (maxRetries > 0) {
+      try {
+        downloadLink = await page.evaluate(() => {
+          const downloadElement = document.querySelector(
+            "main p a[href*='.epub']"
+          );
+          return downloadElement ? downloadElement.href : null;
+        });
+
+        if (downloadLink) {
+          console.log(`Link de download encontrado: ${downloadLink}`);
+          downloadLinkFound = true;
+          break;
+        }
+      } catch (error) {
+        console.log("Erro ao verificar o link de download:", error.message);
+      }
+
+      console.log(
+        "Aguardando a resolução completa do desafio... Tentativas restantes:",
+        maxRetries
+      );
+      await delay(3000);
+      maxRetries--;
     }
 
-    // Usamos o primeiro link de download automaticamente
-    const downloadUrl = downloadLinks[0];
+    if (!downloadLinkFound) {
+      throw new Error(
+        "Não foi possível encontrar o link de download após várias tentativas."
+      );
+    }
 
-    // Diretório temporário para armazenar o livro
-    const tempDir = path.join(__dirname, "../temp");
-    await fs.ensureDir(tempDir); // Cria o diretório se não existir
+    const downloadWithRetry = async (
+      url: string,
+      retries = 3,
+      timeout = 150000
+    ) => {
+      while (retries > 0) {
+        try {
+          const controller = new AbortController();
+          const id = setTimeout(() => controller.abort(), timeout);
+          console.log(
+            `Tentando baixar o arquivo... Tentativas restantes: ${retries}`
+          );
 
-    // Caminho do arquivo que será salvo com base no MD5
-    const filePath = path.join(tempDir, `${md5}.epub`);
+          const response = await fetch(url, { signal: controller.signal });
+          clearTimeout(id);
 
-    // Faz o download do arquivo
-    const response = await axios.get(downloadUrl, { responseType: "stream" });
+          if (!response.ok) {
+            throw new Error(
+              `Erro ao baixar o arquivo. Status: ${response.status}`
+            );
+          }
 
-    // Cria um write stream para salvar o arquivo
-    const writer = fs.createWriteStream(filePath);
+          return await response.arrayBuffer();
+        } catch (error) {
+          if (error.name === "AbortError") {
+            console.log("Download falhou por timeout, tentando novamente...");
+          } else {
+            console.log(`Erro ao baixar o arquivo: ${error.message}`);
+          }
+          retries--;
+          if (retries === 0) {
+            throw new Error(
+              `Falha ao baixar o arquivo após múltiplas tentativas.`
+            );
+          }
+        }
+        await delay(5000);
+      }
+    };
 
-    response.data.pipe(writer);
+    const arrayBuffer = await downloadWithRetry(downloadLink);
 
-    writer.on("finish", () => {
-      res.status(200).json({ message: "Download concluído", filePath });
-    });
+    const fileName = `${md5}.epub`;
+    const filePath = path.join(__dirname, "../temp", fileName);
 
-    writer.on("error", (err) => {
-      console.error("Erro ao escrever o arquivo:", err);
-      res.status(500).json({ error: "Falha ao salvar o arquivo" });
-    });
+    fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
+
+    console.log(`Download concluído: ${filePath}`);
+    return filePath;
   } catch (error) {
-    console.error("Erro ao baixar o livro:", error);
-    res.status(500).json({ error: "Erro ao baixar o livro" });
+    console.error("Erro ao baixar o livro:", error.message);
+    throw error;
+  } finally {
+    console.log("Fechando navegador...");
+    await browser.close();
   }
 };
