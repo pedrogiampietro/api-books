@@ -35,7 +35,6 @@ export const fetchSearchResults = async (
     const $ = load(data);
     const books: SearchResult[] = [];
 
-    // Seleciona todos os wrappers de resultados
     $("a.js-vim-focus").each((_, element) => {
       const anchor = $(element);
       const href = anchor.attr("href");
@@ -51,7 +50,6 @@ export const fetchSearchResults = async (
       const publisher = anchor.find("div.truncate").text().trim();
 
       if (title && href) {
-        // Cria um objeto para cada livro e adiciona ao array
         books.push({
           title,
           author: author || "Desconhecido",
@@ -97,9 +95,8 @@ export const fetchBookDownloadLinks = async (
     const $ = load(data);
     const downloadLinks: string[] = [];
 
-    // Filtra os links de "Slow downloads"
     $("#md5-panel-downloads")
-      .find("h3:contains('Slow downloads')") // Seleciona a seção "Slow downloads"
+      .find("h3:contains('Slow downloads')")
       .nextAll("ul")
       .first()
       .find("li")
@@ -107,7 +104,6 @@ export const fetchBookDownloadLinks = async (
         const text = $(element).text();
         const link = $(element).find("a").attr("href");
 
-        // Filtra somente os links com "no waitlist, but can be very slow"
         if (text.includes("no waitlist, but can be very slow") && link) {
           downloadLinks.push(`${BASE_URL}${link}`);
         }

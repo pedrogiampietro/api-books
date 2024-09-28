@@ -8,6 +8,12 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export const downloadBookWithPuppeteer = async (downloadOptionsUrl: string) => {
   console.log("Iniciando download...");
 
+  const urlParts = downloadOptionsUrl.split("/");
+  const fileHash = urlParts[4];
+
+  const downloadPageUrl = `https://annas-archive.org/slow_download/${fileHash}`;
+  console.log(`Navegando para a página: ${downloadPageUrl}`);
+
   const { browser, page } = await connect({
     headless: false,
     args: ["--start-maximized"],
@@ -21,8 +27,6 @@ export const downloadBookWithPuppeteer = async (downloadOptionsUrl: string) => {
   });
 
   try {
-    const downloadPageUrl = `https://annas-archive.org/slow_download/${downloadOptionsUrl}`;
-    console.log(`Navegando para a página: ${downloadPageUrl}`);
     await page.goto(downloadPageUrl, { waitUntil: "networkidle2" });
 
     console.log("Esperando o desafio do Cloudflare ser resolvido...");
@@ -105,7 +109,7 @@ export const downloadBookWithPuppeteer = async (downloadOptionsUrl: string) => {
 
     const arrayBuffer = await downloadWithRetry(downloadLink);
 
-    const fileName = `${md5}.epub`;
+    const fileName = `${fileHash}.epub`;
     const filePath = path.join(__dirname, "../temp", fileName);
 
     fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
