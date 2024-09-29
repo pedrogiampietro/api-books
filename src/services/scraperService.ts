@@ -1,6 +1,6 @@
 import axios from "axios";
 import { load } from "cheerio";
-import { SearchResult } from "../types"; // Certifique-se de que suas interfaces estão corretas
+import { SearchResult } from "../types"; 
 
 const BASE_URL = "https://annas-archive.org";
 
