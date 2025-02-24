@@ -45,18 +45,22 @@ export const fetchSearchResults = async (
         ? relativeCoverImage.startsWith("http")
           ? relativeCoverImage
           : `${BASE_URL}${relativeCoverImage}`
-        : undefined;
+        : "";
       const details = anchor.find("div.text-gray-500").text().trim();
       const publisher = anchor.find("div.truncate").text().trim();
 
       if (title && href) {
+        const md5Match = href.match(/\/md5\/([a-f0-9]{32})/);
+        const md5 = md5Match ? md5Match[1] : "";
+
         books.push({
           title,
           author: author || "Desconhecido",
           link: `${BASE_URL}${href}`,
-          coverImage: coverImage || null,
+          coverImage,
           details: details || "Sem detalhes",
           publisher: publisher || "Desconhecido",
+          md5,
         });
       }
     });
