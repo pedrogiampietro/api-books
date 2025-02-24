@@ -14,8 +14,10 @@ export const getDetailContent = async (req: Request, res: Response) => {
         .json({ message: 'Parâmetro "md5" é obrigatório.' });
     }
 
-    const content = await fetchBookDownloadLinks(md5);
-    res.json(content);
+    const downloadLinks = await fetchBookDownloadLinks(md5);
+    // Retorna apenas as URLs para manter compatibilidade com a API atual
+    const urls = downloadLinks.map((link) => link.url);
+    res.json(urls);
   } catch (error) {
     console.error("Erro ao obter conteúdo detalhado:", error);
     res.status(500).json({ message: "Erro interno do servidor." });

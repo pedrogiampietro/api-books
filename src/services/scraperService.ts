@@ -1,6 +1,6 @@
 import axios from "axios";
 import { load } from "cheerio";
-import { SearchResult } from "../types"; 
+import { SearchResult } from "../types";
 
 const BASE_URL = "https://annas-archive.org";
 
@@ -69,9 +69,49 @@ export const fetchSearchResults = async (
   }
 };
 
+export const getZLibraryDirectDownloadLink = async (
+  zlibBookUrl: string
+): Promise<string | null> => {
+  try {
+    console.log(`Buscando link direto do Z-Library: ${zlibBookUrl}`);
+
+    const { data } = await axios.get(zlibBookUrl, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+          "AppleWebKit/537.36 (KHTML, like Gecko) " +
+          "Chrome/58.0.3029.110 Safari/537.3",
+        "Accept-Language": "en-US,en;q=0.9",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+      },
+    });
+
+    const $ = load(data);
+    const downloadLink = $("a.addDownloadedBook").attr("href");
+
+    if (downloadLink) {
+      // O link vem como relativo, então precisamos adicionar o domínio
+      return `https://z-lib.gs${downloadLink}`;
+    }
+
+    return null;
+  } catch (error) {
+    console.error("Erro ao obter link direto do Z-Library:", error);
+    return null;
+  }
+};
+
+// Modificar a função fetchBookDownloadLinks para incluir informações sobre a fonte
+export interface DownloadLink {
+  url: string;
+  source: "annasarchive" | "zlibrary";
+  type: "direct" | "page";
+}
+
 export const fetchBookDownloadLinks = async (
   md5: string
-): Promise<string[]> => {
+): Promise<DownloadLink[]> => {
   try {
     const bookUrl = `${BASE_URL}/md5/${md5}`;
     console.log(`Fazendo requisição para: ${bookUrl}`);
@@ -93,21 +133,43 @@ export const fetchBookDownloadLinks = async (
     }
 
     const $ = load(data);
-    const downloadLinks: string[] = [];
+    const downloadLinks: DownloadLink[] = [];
 
+    // Busca links de download lentos do Anna's Archive
     $("#md5-panel-downloads")
-      .find("h3:contains('Slow downloads')")
+      .find("h3:contains('🐢 Slow downloads')")
       .nextAll("ul")
       .first()
-      .find("li")
+      .find("a[href*='/slow_download/']")
       .each((_, element) => {
-        const text = $(element).text();
-        const link = $(element).find("a").attr("href");
-
-        if (text.includes("no waitlist, but can be very slow") && link) {
-          downloadLinks.push(`${BASE_URL}${link}`);
+        const link = $(element).attr("href");
+        if (link) {
+          downloadLinks.push({
+            url: `${BASE_URL}${link}`,
+            source: "annasarchive",
+            type: "direct",
+          });
         }
       });
+
+    // Busca links do Z-Library
+    const zlibDirectLink = $("a[href*='z-lib.gs/md5/']").attr("href");
+    const zlibBookLink = $("a[href*='z-lib.gs/book/']").attr("href");
+
+    if (zlibDirectLink) {
+      downloadLinks.push({
+        url: zlibDirectLink,
+        source: "zlibrary",
+        type: "direct",
+      });
+    }
+    if (zlibBookLink) {
+      downloadLinks.push({
+        url: zlibBookLink,
+        source: "zlibrary",
+        type: "page",
+      });
+    }
 
     console.log(`Links de download encontrados: ${downloadLinks.length}`);
     return downloadLinks;

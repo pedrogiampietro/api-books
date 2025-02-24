@@ -101,16 +101,22 @@ router.get("/detail/:md5", getDetailContent);
 
 /**
  * @swagger
- * /api/download/{md5}:
+ * /api/download:
  *   post:
- *     summary: "Baixa o livro baseado no MD5 automaticamente usando o primeiro link de download"
- *     parameters:
- *       - in: path
- *         name: md5
- *         schema:
- *           type: string
- *         required: true
- *         description: "MD5 do conteúdo"
+ *     summary: "Baixa o livro usando a URL fornecida"
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               downloadUrl:
+ *                 type: string
+ *                 description: "URL completa para download do livro"
+ *                 example: "https://annas-archive.org/slow_download/c010b74b59dc528e86fdd1882b1e98cc/0/0"
+ *             required:
+ *               - downloadUrl
  *     responses:
  *       200:
  *         description: "Livro baixado com sucesso"
@@ -121,13 +127,15 @@ router.get("/detail/:md5", getDetailContent);
  *               properties:
  *                 message:
  *                   type: string
+ *                   example: "Download concluído com sucesso"
  *                 filePath:
  *                   type: string
+ *                   example: "/path/to/downloaded/file.epub"
  *       400:
- *         description: "Parâmetros inválidos"
+ *         description: "URL inválida ou não suportada"
  *       500:
  *         description: "Erro ao baixar o livro"
  */
-router.post("/download/:md5", downloadBookWithPuppeteer);
+router.post("/download", downloadBookWithPuppeteer);
 
 export default router;
